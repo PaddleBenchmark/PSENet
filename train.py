@@ -7,7 +7,7 @@ import os.path as osp
 import sys
 import time
 import json
-from mmcv import Config
+from mmcv import Config,DictAction
 
 from dataset import build_data_loader
 from models import build_model
@@ -148,6 +148,8 @@ def save_checkpoint(state, checkpoint_path, cfg):
 
 def main(args):
     cfg = Config.fromfile(args.config)
+    if args.cfg_options is not None:
+        cfg.merge_from_dict(args.cfg_options)
     print(json.dumps(cfg._cfg_dict, indent=4))
 
     if args.checkpoint is not None:
@@ -219,6 +221,16 @@ if __name__ == '__main__':
     parser.add_argument('config', help='config file path')
     parser.add_argument('--checkpoint', nargs='?', type=str, default=None)
     parser.add_argument('--resume', nargs='?', type=str, default=None)
+    parser.add_argument(
+        '--cfg-options',
+        nargs='+',
+        action=DictAction,
+        help='Override some settings in the used config, the key-value pair '
+        'in xxx=yyy format will be merged into config file. If the value to '
+        'be overwritten is a list, it should be of the form of either '
+        'key="[a,b]" or key=a,b .The argument also allows nested list/tuple '
+        'values, e.g. key="[(a,b),(c,d)]". Note that the quotation marks '
+        'are necessary and that no white space is allowed.')
     args = parser.parse_args()
 
     main(args)
