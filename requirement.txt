@@ -1,6 +1,4 @@
-torch==1.1.0
-torchvision==0.3
-mmcv==0.2.12
+mmcv==1.3.9
 editdistance
 Polygon3
 pyclipper
