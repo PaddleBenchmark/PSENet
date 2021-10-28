@@ -91,7 +91,7 @@ def train(train_loader, model, optimizer, epoch, start_iter, cfg):
         start = time.time()
 
         # print log
-        if iter % 10 == 0:
+        if iter % 2 == 0:
             output_log = '({batch}/{size}) LR: {lr:.6f} | Batch: {bt:.3f}s | Total: {total:.0f}min | ' \
                          'ETA: {eta:.0f}min | Loss: {loss:.3f} | ' \
                          'Loss(text/kernel): {loss_text:.3f}/{loss_kernel:.3f} ' \
