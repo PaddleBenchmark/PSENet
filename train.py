@@ -7,7 +7,7 @@ import os.path as osp
 import sys
 import time
 import json
-from mmcv import Config
+from mmcv import Config,DictAction
 
 from dataset import build_data_loader
 from models import build_model
@@ -33,10 +33,15 @@ def train(train_loader, model, optimizer, epoch, start_iter, cfg):
     ious_text = AverageMeter()
     ious_kernel = AverageMeter()
     accs_rec = AverageMeter()
-
+    
+    train_reader_cost = 0.0
+    train_run_cost = 0.0
+    total_samples = 0
+    reader_start = time.time()
     # start time
     start = time.time()
     for iter, data in enumerate(train_loader):
+        train_reader_cost += time.time() - reader_start
         # skip previous iterations
         if iter < start_iter:
             print('Skipping iter: %d' % iter)
@@ -51,7 +56,7 @@ def train(train_loader, model, optimizer, epoch, start_iter, cfg):
 
         # prepare input
         data.update(dict(cfg=cfg))
-
+        train_start = time.time()
         # forward
         outputs = model(**data)
         #
@@ -78,17 +83,19 @@ def train(train_loader, model, optimizer, epoch, start_iter, cfg):
         loss.backward()
         optimizer.step()
 
+        train_run_cost += time.time() - train_start
+        total_samples += data['imgs'].shape[0]
         batch_time.update(time.time() - start)
 
         # update start time
         start = time.time()
 
         # print log
-        if iter % 20 == 0:
+        if iter % 2 == 0:
             output_log = '({batch}/{size}) LR: {lr:.6f} | Batch: {bt:.3f}s | Total: {total:.0f}min | ' \
                          'ETA: {eta:.0f}min | Loss: {loss:.3f} | ' \
                          'Loss(text/kernel): {loss_text:.3f}/{loss_kernel:.3f} ' \
-                         '| IoU(text/kernel): {iou_text:.3f}/{iou_kernel:.3f} | Acc rec: {acc_rec:.3f}'.format(
+                         '| IoU(text/kernel): {iou_text:.3f}/{iou_kernel:.3f} | Acc rec: {acc_rec:.3f} | ips: {ips:.5f}'.format(
                 batch=iter + 1,
                 size=len(train_loader),
                 lr=optimizer.param_groups[0]['lr'],
@@ -101,10 +108,14 @@ def train(train_loader, model, optimizer, epoch, start_iter, cfg):
                 iou_text=ious_text.avg,
                 iou_kernel=ious_kernel.avg,
                 acc_rec=accs_rec.avg,
+                ips=total_samples /  (train_reader_cost + train_run_cost)  
             )
+            train_reader_cost = 0.0
+            train_run_cost = 0.0
+            total_samples = 0
             print(output_log)
             sys.stdout.flush()
-
+        reader_start = time.time()
 
 def adjust_learning_rate(optimizer, dataloader, epoch, iter, cfg):
     schedule = cfg.train_cfg.schedule
@@ -137,6 +148,8 @@ def save_checkpoint(state, checkpoint_path, cfg):
 
 def main(args):
     cfg = Config.fromfile(args.config)
+    if args.cfg_options is not None:
+        cfg.merge_from_dict(args.cfg_options)
     print(json.dumps(cfg._cfg_dict, indent=4))
 
     if args.checkpoint is not None:
@@ -208,6 +221,16 @@ if __name__ == '__main__':
     parser.add_argument('config', help='config file path')
     parser.add_argument('--checkpoint', nargs='?', type=str, default=None)
     parser.add_argument('--resume', nargs='?', type=str, default=None)
+    parser.add_argument(
+        '--cfg-options',
+        nargs='+',
+        action=DictAction,
+        help='Override some settings in the used config, the key-value pair '
+        'in xxx=yyy format will be merged into config file. If the value to '
+        'be overwritten is a list, it should be of the form of either '
+        'key="[a,b]" or key=a,b .The argument also allows nested list/tuple '
+        'values, e.g. key="[(a,b),(c,d)]". Note that the quotation marks '
+        'are necessary and that no white space is allowed.')
     args = parser.parse_args()
 
     main(args)
